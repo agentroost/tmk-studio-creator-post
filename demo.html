@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Demo (Sandbox) — Tmk Studio Creator Post</title>
+<style>
+body{font-family:system-ui,Arial,sans-serif;background:#f5efe3;color:#2b2b2b;margin:0}
+main{max-width:720px;margin:0 auto;padding:48px 20px;line-height:1.6}
+h1{font-size:1.8rem}
+.logo{display:inline-block;background:#2b2b2b;color:#f5efe3;padding:10px 18px;border-radius:10px;letter-spacing:2px}
+.card{background:#fffdf7;border:1px solid #ddd2ba;border-radius:14px;padding:22px 24px;margin:22px 0}
+button{background:#2b2b2b;color:#f5efe3;border:0;border-radius:10px;padding:13px 22px;font-size:1rem;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.accent{background:#c8402a}
+.status{font-family:ui-monospace,Menlo,Consolas,monospace;background:#efe7d3;border-radius:8px;padding:12px 14px;white-space:pre-wrap;word-break:break-word;font-size:.92rem}
+.ok{color:#1e7a34;font-weight:700}
+.err{color:#b3261e;font-weight:700}
+video{width:270px;max-width:100%;border-radius:12px;background:#000}
+.avatar{width:56px;height:56px;border-radius:50%;vertical-align:middle;margin-right:12px}
+a{color:#2b2b2b}
+.small{font-size:.9rem;color:#5c5546}
+</style>
+</head>
+<body>
+<main>
+<p><span class="logo">TMK</span></p>
+<h1>Creator Post — Live Demo</h1>
+<p>This page demonstrates the complete <strong>Tmk Studio Creator Post</strong> integration in TikTok's <strong>Sandbox</strong> environment, using a Sandbox target account:</p>
+<ol>
+<li><strong>Connect</strong> a TikTok account with TikTok Login Kit (scope <em>user.info.basic</em>).</li>
+<li>The connected account's name is shown (Display API / user info).</li>
+<li><strong>Send a test video</strong> to that account's own TikTok inbox with the Content Posting API in Upload mode (scope <em>video.upload</em>). The video arrives as a draft notification in the TikTok app.</li>
+<li>The creator opens the TikTok app, reviews the draft, and presses Post themselves. Creator Post never publishes directly — Direct Post is not used.</li>
+</ol>
+
+<div class="card" id="step1">
+<h2>Step 1 — Connect TikTok (Login Kit)</h2>
+<div id="connect-area">
+<p>Connect the Sandbox target TikTok account to begin.</p>
+<button id="connect-btn">Connect TikTok</button>
+</div>
+<div id="connected-area" style="display:none">
+<p><img class="avatar" id="avatar" alt="" style="display:none"><span class="ok">Connected as:</span> <strong id="display-name"></strong></p>
+<p class="small">Scope granted: user.info.basic, video.upload</p>
+</div>
+<p class="status" id="connect-status">Not connected yet.</p>
+</div>
+
+<div class="card" id="step2">
+<h2>Step 2 — Send a test video to my TikTok inbox</h2>
+<p>The test video below is sent to the connected account's own TikTok inbox as a draft (Content Posting API, Upload mode).</p>
+<video id="preview" src="test-video.mp4" controls muted playsinline></video>
+<p><button id="send-btn" class="accent" disabled>Send test video to my TikTok inbox</button></p>
+<p class="status" id="send-status">Waiting for connection.</p>
+</div>
+
+<div class="card">
+<h2>Step 3 — Post it yourself in the TikTok app</h2>
+<p>When the status above reaches <strong>SEND_TO_USER_INBOX</strong>, open the TikTok app on the phone of the connected account: the video is waiting in the inbox / create flow as a draft. Add the caption there and press Post. Nothing is ever published by this tool.</p>
+</div>
+
+<p class="small"><a href="index.html">About Creator Post</a> &middot; <a href="terms.html">Terms of Service</a> &middot; <a href="privacy.html">Privacy Policy</a></p>
+<script>
+var API = "https://tmk-creator-post.reuniakbarpunk212.workers.dev";
+var CLIENT_KEY = "sbaw7eoeqawu97yd9m"; // Sandbox client key (public)
+var REDIRECT_URI = "https://agentroost.github.io/tmk-studio-creator-post/callback.html";
+
+function $(id){ return document.getElementById(id); }
+function setStatus(id, text, cls){
+  var el = $(id);
+  el.textContent = text;
+  el.className = "status" + (cls ? " " + cls : "");
+}
+function session(){
+  try { return JSON.parse(sessionStorage.getItem("tcp_session") || "null"); }
+  catch(e){ return null; }
+}
+
+$("connect-btn").addEventListener("click", function(){
+  var state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  sessionStorage.setItem("tcp_state", state);
+  var url = "https://www.tiktok.com/v2/auth/authorize/"
+    + "?client_key=" + encodeURIComponent(CLIENT_KEY)
+    + "&scope=" + encodeURIComponent("user.info.basic,video.upload")
+    + "&response_type=code"
+    + "&redirect_uri=" + encodeURIComponent(REDIRECT_URI)
+    + "&state=" + encodeURIComponent(state);
+  setStatus("connect-status", "Redirecting to TikTok to connect your account...");
+  location.href = url;
+});
+
+function showConnected(s){
+  $("connect-area").style.display = "none";
+  $("connected-area").style.display = "block";
+  $("display-name").textContent = s.display_name || "(name unavailable)";
+  if (s.avatar_url) { $("avatar").src = s.avatar_url; $("avatar").style.display = "inline-block"; }
+  setStatus("connect-status", "Connected. Access token is held by the demo backend; only your display name is shown here.", "ok");
+  $("send-btn").disabled = false;
+  setStatus("send-status", "Ready. The test video can now be sent to your TikTok inbox.");
+}
+
+var s = session();
+if (s && s.session) { showConnected(s); }
+
+$("send-btn").addEventListener("click", function(){
+  var s = session();
+  if (!s || !s.session) { setStatus("send-status", "Connect TikTok first.", "err"); return; }
+  $("send-btn").disabled = true;
+  setStatus("send-status", "Fetching the test video...");
+  fetch("test-video.mp4").then(function(r){ return r.blob(); }).then(function(blob){
+    setStatus("send-status", "Sending " + blob.size + " bytes to the demo backend, which uploads it to your TikTok inbox...");
+    return fetch(API + "/upload", {
+      method: "POST",
+      headers: { "X-Session": s.session, "Content-Type": "video/mp4" },
+      body: blob
+    });
+  }).then(function(r){ return r.json(); }).then(function(res){
+    if (!res.ok) {
+      setStatus("send-status", "Upload failed: " + JSON.stringify(res), "err");
+      $("send-btn").disabled = false;
+      return;
+    }
+    setStatus("send-status", "Video uploaded. publish_id = " + res.publish_id + "\nChecking delivery status...");
+    pollStatus(res.publish_id, 0);
+  }).catch(function(e){
+    setStatus("send-status", "Network error: " + e, "err");
+    $("send-btn").disabled = false;
+  });
+});
+
+function pollStatus(publishId, tries){
+  var s = session();
+  fetch(API + "/status?publish_id=" + encodeURIComponent(publishId), {
+    headers: { "X-Session": s.session }
+  }).then(function(r){ return r.json(); }).then(function(res){
+    var st = res.status || "(unknown)";
+    if (st === "SEND_TO_USER_INBOX") {
+      setStatus("send-status", "Status: SEND_TO_USER_INBOX\nThe test video is now a draft in the connected account's TikTok inbox. Open the TikTok app to review it and press Post.", "ok");
+      return;
+    }
+    if (st === "FAILED") {
+      setStatus("send-status", "Status: FAILED (" + (res.fail_reason || "unknown reason") + ")", "err");
+      $("send-btn").disabled = false;
+      return;
+    }
+    setStatus("send-status", "Status: " + st + " — still processing, checking again...");
+    if (tries < 40) { setTimeout(function(){ pollStatus(publishId, tries + 1); }, 5000); }
+    else { setStatus("send-status", "Status is still " + st + " after several minutes. publish_id = " + publishId); }
+  }).catch(function(e){
+    setStatus("send-status", "Status check error: " + e, "err");
+  });
+}
+</script>
+</main>
+</body>
+</html>

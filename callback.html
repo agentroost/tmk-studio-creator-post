@@ -9,12 +9,44 @@
 <body>
 <main>
 <h1>Your TikTok account is connected</h1>
-<p id="status">You have returned from TikTok. If you approved the connection, your account is now linked to Tmk Studio Creator Post.</p>
+<p id="status">You have returned from TikTok. Completing the connection...</p>
 <p>What happens next: choose one of your own videos in Creator Post and send it to your own TikTok inbox. Then open the TikTok app on your phone, review the video, and press Post yourself. Creator Post never publishes anything for you.</p>
-<p><a href="index.html">Back to Tmk Studio Creator Post</a> &middot; <a href="terms.html">Terms of Service</a> &middot; <a href="privacy.html">Privacy Policy</a></p>
+<p><a href="demo.html">Go to the live demo</a> &middot; <a href="index.html">Back to Tmk Studio Creator Post</a> &middot; <a href="terms.html">Terms of Service</a> &middot; <a href="privacy.html">Privacy Policy</a></p>
 <script>
+var API = "https://tmk-creator-post.reuniakbarpunk212.workers.dev";
 var q = new URLSearchParams(location.search);
-if (q.get('error')) { document.getElementById('status').textContent = 'The TikTok connection was not completed (' + q.get('error') + '). You can try connecting again from Creator Post.'; }
+var statusEl = document.getElementById('status');
+
+if (q.get('error')) {
+  statusEl.textContent = 'The TikTok connection was not completed (' + q.get('error') + '). You can try connecting again from the demo page.';
+} else if (q.get('code')) {
+  var expectedState = sessionStorage.getItem('tcp_state');
+  if (expectedState && q.get('state') && q.get('state') !== expectedState) {
+    statusEl.textContent = 'The connection could not be verified (state mismatch). Please start again from the demo page.';
+  } else {
+    fetch(API + '/auth/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: q.get('code') })
+    }).then(function(r){ return r.json(); }).then(function(res){
+      if (res && res.ok) {
+        sessionStorage.setItem('tcp_session', JSON.stringify({
+          session: res.session,
+          display_name: res.display_name,
+          avatar_url: res.avatar_url
+        }));
+        statusEl.textContent = 'Connected as ' + (res.display_name || 'your TikTok account') + '. Returning to the demo...';
+        setTimeout(function(){ location.replace('demo.html'); }, 800);
+      } else {
+        statusEl.textContent = 'The connection could not be completed (' + ((res && res.error) || 'unknown error') + '). You can try again from the demo page.';
+      }
+    }).catch(function(e){
+      statusEl.textContent = 'The connection could not be completed (network error). You can try again from the demo page.';
+    });
+  }
+} else {
+  statusEl.textContent = 'You have returned from TikTok. If you approved the connection, your account is now linked to Tmk Studio Creator Post.';
+}
 </script>
 </main>
 </body>
